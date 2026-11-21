@@ -1,0 +1,106 @@
+# ============================================================================
+#  Laptop deal bot: configuration
+#  Edit this on github.com (pencil icon) or locally + push. The next run uses it.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Your budget
+# ---------------------------------------------------------------------------
+budget:
+  max_price: 150000        # alerts only fire at or below this price (or a watchlist target_price)
+  track_min_price: 75000   # laptops tracked on the dashboard: from this price...
+  track_max_price: 200000  # ...up to this. Tracking above budget lets the bot catch a ₹1.7L laptop dropping into budget.
+
+# ---------------------------------------------------------------------------
+# Your minimum specs (checked on every laptop the bot finds)
+#   CPU: Intel i7/i9 13th gen or newer, Core Ultra 7/9, Core 7/9 2xxH,
+#        Ryzen 7/9 250/260, 7840HS+, 8845HS, Ryzen AI 7/9, Ryzen 9000.
+#        Rejected: i5/Core 5, i7 12th gen and older, Ryzen 7 7445HS/7735HS/170.
+# ---------------------------------------------------------------------------
+specs:
+  gpus: ["5050", "4060", "5060", "4070", "5070", "4080", "5080", "4090", "5090"]
+  min_ram_gb: 16
+  min_ssd_gb: 512
+  require_cpu: true
+
+# ---------------------------------------------------------------------------
+# WATCHLIST: specific laptops (product page URLs). Checked every run.
+# Alert when price <= target_price, or a new low / big drop within your budget.
+# Picked from a live scan of all stores on 21 Nov 2026 (prices then in comments).
+# ---------------------------------------------------------------------------
+watchlist:
+  - name: "GIGABYTE Gaming A16 · Ryzen 7 260 · RTX 5060 · 16GB/512GB"
+    target_price: 142000     # Flipkart ₹1,49,990: already in budget; best-value RTX 5060 right now
+    urls:
+      - https://www.flipkart.com/gigabyte-gaming-a16-amd-ryzen-7-260-16-gb-512-gb-ssd-windows-11-home-8-graphics-nvidia-geforce-rtx-5060-3vhk3in893sh-laptop/p/itm13d22b42f6ffb?pid=COMHPQ7ZHBNU9UBW
+
+  - name: "Lenovo LOQ 15AHP10 · Ryzen 7 250 · RTX 5060 · 16GB/512GB"
+    target_price: 140000     # Reliance ₹1,75,490, Flipkart ₹1,84,990: reviewers' best-value pick, sold ~₹1.37L in May sales
+    urls:
+      - https://www.reliancedigital.in/product/lenovo-loq-15ahp10-83jg00gxin-standard-laptop-amd-ryzen-7-25016-gb512-gb-ssd8-5060nvidia-geforce-rtx-5060-8gb-gddr7-graphicswindows-11office-home-2024-lenovo-ai-nowfhd-3962-cm-156-inch-luna-grey-mqrwyv-10202408
+      - https://www.flipkart.com/lenovo-loq-2025-amd-ryzen-7-octa-core-250-16-gb-512-gb-ssd-windows-11-home-8-graphics-nvidia-geforce-rtx-5060-15ahp10-gaming-laptop/p/itm56d4149067c03?pid=COMHZFBN9KFUYVG8
+
+  - name: "ASUS TUF F16 · i7-14650HX · RTX 5060 · 16GB/1TB"
+    target_price: 145000     # Reliance ₹1,55,990: closest RTX 5060 to budget, 1TB SSD
+    urls:
+      - https://www.reliancedigital.in/product/asus-tuf-f16-fx608jmr-rv049ws-gaming-laptop-intel-core-i7-14650hx16-gb1-tb-ssd8-gb-nvidia-geforce-rtx-5060-laptop-gpuwindows-11-homemicrosoft-office-2024wuxga-4064-cm-16-inch-jaeger-gray-mbp1vw-9263265
+
+  - name: "HP Omen 16 · Core Ultra 7 255H · RTX 5060 · 24GB/1TB"
+    target_price: 145000     # Reliance ₹1,62,990: best display/build in this group (reviews)
+    urls:
+      - https://www.reliancedigital.in/product/hp-omen-16-am0238tx-gaming-laptop-intel-core-ultra-7-255h24-gb1-tb-ssd8-gb-nvidia-geforce-rtx-5060-gpuwindows-11-homems-office-home-2024full-hd-409-cm-161-inch-shadow-black-black-chrome-logo-mnd3tr-9996310
+
+  - name: "HP Omen 16 · Ryzen AI 7 350 · RTX 5060 · 24GB/1TB · 2K"
+    target_price: 145000     # Reliance ₹1,60,990
+    urls:
+      - https://www.reliancedigital.in/product/hp-omen-16-16-ap0183ax-gaming-laptop-amd-ryzen-ai-7-35024-gb1-tb-ssd8-gb-nvidia-geforce-rtx-5060windows-11-homems-office-home-2024-1-year-microsoft-365-basic2k-409-cm-161-inch-shadow-black-mhugte-9576593
+
+  - name: "Lenovo Legion 5 15IRX10 · i7-13650HX · RTX 5060 · 16GB/1TB"
+    target_price: 150000     # Reliance ₹1,73,990: Legion = better cooling/build than LOQ
+    urls:
+      - https://www.reliancedigital.in/product/lenovo-legion5-15irx10-83ly00ncin-standard-laptop-intel-core-i7-13650hx16-gb1-tb-ssd8-gb-nvidia-geforce-rtx-5060windows-11-homemsoffice-home-2024-lenovo-ai-nowwuxga-3886-cm-153-inch-eclipse-black-mocu25-10045051
+
+  - name: "Acer Nitro V 15 · i7-13620H · RTX 5050 · 16GB/512GB"
+    target_price: 115000     # Flipkart ₹1,25,599, Amazon ₹1,48,990: cheapest laptop meeting your specs
+    urls:
+      - https://www.flipkart.com/acer-nitro-v-15-intel-core-i7-13th-gen-13620h-16-gb-512-gb-ssd-windows-11-home-8-graphics-nvidia-geforce-rtx-5050-anv15-52-gaming-laptop/p/itmca41715d4a6d8?pid=COMHEAS2VRPZ8ZBC
+      - https://www.amazon.in/dp/B0FK8QVFJ5
+
+  - name: "HP Victus AI · Ryzen 7 260 · RTX 5050 · 16GB/1TB"
+    target_price: 130000     # Flipkart ₹1,50,000
+    urls:
+      - https://www.flipkart.com/hp-victus-ai-amd-ryzen-7-octa-core-260-16-gb-1-tb-ssd-windows-11-home-8-gb-graphics-nvidia-geforce-rtx-5050-15-fb3102ax-gaming-laptop/p/itm4258682d8b436?pid=COMHPPZS4ADVNGZM
+
+# ---------------------------------------------------------------------------
+# CRITERIA: every laptop on these store search pages that meets your specs is
+# tracked (shown on the dashboard). You get an alert when one is within budget
+# AND drops into budget / hits a new low / falls well below its usual price.
+# A laptop's first sighting is silent (it builds a baseline).
+# ---------------------------------------------------------------------------
+criteria:
+  enabled: true
+  exclude: ["refurbished", "renewed", "open box", "pre-owned", "used"]
+  search_urls:
+    - "https://www.amazon.in/s?k=rtx+5060+laptop&rh=p_36%3A7500000-20000000"
+    - "https://www.amazon.in/s?k=rtx+5050+laptop&rh=p_36%3A7500000-20000000"
+    - "https://www.amazon.in/s?k=rtx+4060+laptop&rh=p_36%3A7500000-20000000"
+    - "https://www.flipkart.com/search?q=rtx+5060+laptop&p%5B%5D=facets.price_range.from%3D75000&p%5B%5D=facets.price_range.to%3D200000"
+    - "https://www.flipkart.com/search?q=rtx+5050+laptop&p%5B%5D=facets.price_range.from%3D75000&p%5B%5D=facets.price_range.to%3D200000"
+    - "https://www.flipkart.com/search?q=rtx+4060+laptop&p%5B%5D=facets.price_range.from%3D75000&p%5B%5D=facets.price_range.to%3D200000"
+    - "https://www.reliancedigital.in/products?q=rtx%205060%20laptop"
+    - "https://www.reliancedigital.in/products?q=rtx%205050%20laptop"
+    - "https://www.reliancedigital.in/collection/gaming-laptops"
+    - "https://www.croma.com/computers-tablets/laptops/gaming-laptops/c/806"
+
+# ---------------------------------------------------------------------------
+# Settings (defaults are sensible)
+# ---------------------------------------------------------------------------
+settings:
+  drop_pct_vs_median: 8        # alert if price is this % below its usual (median) price
+  median_window_days: 30
+  min_days_for_median: 3
+  new_low_min_drop_pct: 2      # a "new low" must beat the old low by at least this %
+  realert_hours: 168           # repeat an alert for the same laptop only after 7 days (or sooner if cheaper)
+  fail_alert_after: 6          # WhatsApp warning after this many failed checks in a row for a page
+  max_alerts_per_run: 10
+  refresh_per_run: 8           # product pages re-checked per run (keeps search-page prices honest)
