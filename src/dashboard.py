@@ -18,6 +18,14 @@ import specs  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def short_name(title: str) -> str:
+    """Brand-store titles are 'Name | cpu | gpu | ...' (specs shown separately as chips)."""
+    name = title.split(" | ")[0].strip()
+    if name.startswith("Lenovo Lenovo "):
+        name = name[7:]
+    return name[:140]
+
+
 def build_data(history: dict, cfg: dict) -> dict:
     watch_names = {}
     for item in cfg.get("watchlist") or []:
@@ -30,32 +38,40 @@ def build_data(history: dict, cfg: dict) -> dict:
 
     items = []
     for pid, r in history.get("products", {}).items():
-        if r.get("specs_failed") or not r.get("days") or not r.get("last"):
+        if not r.get("last"):
             continue
-        days = sorted(r["days"].items())
+        days = sorted(deals.combined_days(r).items())
+        if not days:
+            continue
         past = [p for d, p in days if since <= d < today]
         item = None
         for u, it in watch_names.items():
             if r.get("url", "").split("?")[0] == u.split("?")[0] or (pid.startswith("amazon:") and pid.split(":")[1] in u):
                 item = it
+        sp = r.get("specs") or {}
         items.append({
             "id": pid,
-            "name": (item or {}).get("name") or r.get("name") or r.get("title", pid),
+            "name": (item or {}).get("name") or r.get("name") or short_name(r.get("title", pid)),
             "title": r.get("title", ""),
             "url": r.get("url"),
             "store": r.get("store") or pid.split(":")[0],
             "watch": bool(item) or r.get("kind") == "watch",
-            "specs": specs.short(r.get("specs") or {}) if r.get("specs") else "",
+            "match": bool(r.get("match", True)) and not r.get("specs_failed"),
+            "why_not": r.get("specs_failed") or r.get("why_not"),
+            "specs": specs.short(sp) if sp else "",
+            "cpu": sp.get("cpu") or "", "gpu": (sp.get("gpu") or "").rstrip("?"),
+            "ram": sp.get("ram"), "ssd": sp.get("ssd"),
             "price": r["last"],
             "mrp": r.get("mrp"),
             "low": min(p for _, p in days),
+            "ath_low": r.get("ath_low"), "ath_low_on": r.get("ath_low_on"), "ph_url": r.get("ph_url"),
             "usual": int(statistics.median(past)) if past else None,
             "target": (item or {}).get("target_price") or r.get("target"),
             "in_stock": r.get("in_stock", True),
-            "verified": bool(r.get("has_page")),
+            "verified": bool(r.get("has_page")) or pid.startswith(("lenovo.com:", "hp.com:")),
             "last_seen": r.get("last_seen"),
             "last_alert": r.get("last_alert"),
-            "days": days,
+            "days": days[-366:],
         })
     sources = []
     for url, s in history.get("sources", {}).items():
@@ -157,6 +173,14 @@ tr.stale td { opacity: .55; }
 .tip { position: absolute; pointer-events: none; background: var(--text-primary); color: var(--surface-1);
   font-size: 12px; padding: 4px 7px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -115%);
   top: 0; display: none; font-variant-numeric: tabular-nums; z-index: 2; }
+.filters { display: flex; flex-direction: column; gap: 8px; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.fgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.flabel { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); width: 72px; }
+button.chip { border: 1px solid var(--border); cursor: pointer; font: inherit; font-size: 12px; }
+button.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.link { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 13px; padding: 0; }
+input[type=range] { accent-color: var(--accent); width: 220px; }
 .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin: 8px 0 0; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--series-1); vertical-align: middle; margin-right: 6px; }
 .legend i.ref { border-top: 1.5px dashed var(--ref); }
@@ -185,34 +209,46 @@ footer { margin-top: 40px; font-size: 12px; color: var(--text-muted); }
 
   <h2>All tracked laptops</h2>
   <div class="controls">
-    <input type="search" id="q" placeholder="Search: LOQ, 5060, Ryzen, Flipkart…" aria-label="Search laptops">
+    <input type="search" id="q" placeholder="Search: LOQ, Omen, Ryzen, Flipkart…" aria-label="Search laptops">
     <select id="sort" aria-label="Sort">
       <option value="price">Sort: price (low → high)</option>
       <option value="drop">Sort: % below usual</option>
+      <option value="vsath">Sort: closest to all-time low</option>
       <option value="gap">Sort: closest to budget</option>
       <option value="name">Sort: name</option>
     </select>
+    <label><input type="checkbox" id="onlyMatch" checked> Meets my specs</label>
     <label><input type="checkbox" id="onlyWatch"> Watchlist only</label>
-    <label><input type="checkbox" id="only5060"> RTX 5060+ only</label>
+    <label><input type="checkbox" id="onlyStock" checked> In stock</label>
+  </div>
+  <div class="filters">
+    <div class="fgroup"><span class="flabel">GPU</span><div class="chips" id="fGpu"></div></div>
+    <div class="fgroup"><span class="flabel">CPU</span><div class="chips" id="fCpu"></div></div>
+    <div class="fgroup"><span class="flabel">RAM</span><div class="chips" id="fRam"></div></div>
+    <div class="fgroup"><span class="flabel">SSD</span><div class="chips" id="fSsd"></div></div>
+    <div class="fgroup"><span class="flabel">Store</span><div class="chips" id="fStore"></div></div>
+    <div class="fgroup"><span class="flabel">Max price</span>
+      <input type="range" id="fMax" min="75000" max="200000" step="5000" aria-label="Maximum price"><span id="fMaxV" class="sec"></span></div>
+    <div class="fgroup"><span class="muted" id="count"></span> <button class="link" id="reset" type="button">Reset filters</button></div>
   </div>
   <div class="tablewrap">
     <table>
       <thead><tr>
         <th>Laptop</th><th class="hide-sm">Store</th><th class="num">Price</th>
-        <th class="num hide-sm">Lowest seen</th><th class="num hide-sm">Usual</th>
+        <th class="num hide-sm">All-time low</th><th class="num hide-sm">Usual (30d)</th>
         <th class="hide-sm">Trend</th><th></th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </div>
-  <div class="legend"><span><i></i>Daily lowest price</span><span><i class="ref"></i>Your budget</span></div>
+  <div class="legend"><span><i></i>Daily lowest price (up to 1 year; older data from pricehistory.app)</span><span><i class="ref"></i>Your budget</span></div>
 
   <h2>Store pages checked</h2>
   <ul class="sources" id="sources"></ul>
 
   <footer>
     Prices are listed prices (bank/card offers not included). "Usual" = median daily price over the last <span id="win"></span> days.
-    Always check the store page before buying. Updated by GitHub Actions about every 30 min.
+    Always check the store page before buying. Updated about every 30 min by the bot on this server.
   </footer>
 </div>
 
@@ -244,7 +280,9 @@ const items = D.items.map(it => ({...it,
   drop: it.usual ? (it.usual - it.price) / it.usual * 100 : null,
   inBudget: B && it.price <= B && it.in_stock,
   stale: it.last_seen && (Date.now() - new Date(it.last_seen)) > 2 * 864e5,
-  gpuN: parseInt(((it.specs.match(/RTX (\d{4})/) || [])[1]) || '0', 10),
+  gpuN: parseInt((it.gpu || '0').slice(0, 4), 10) || 0,
+  cpuBrand: /ryzen/i.test(it.cpu) ? 'AMD' : (it.cpu ? 'Intel' : '?'),
+  vsAth: it.ath_low ? (it.price - it.ath_low) / it.ath_low * 100 : null,
 }));
 
 $('sub').textContent = `Budget ${inr(B)} · last check ${ago(D.last_run)} · page built ${new Date(D.generated).toLocaleString('en-IN')}`;
@@ -252,10 +290,10 @@ $('win').textContent = D.window;
 
 // stats
 const okSrc = D.sources.filter(s => s.ok).length;
-const cheapest5060 = items.filter(i => i.gpuN >= 5060 && !i.stale).sort((a, b) => a.price - b.price)[0];
+const cheapest5060 = items.filter(i => i.gpuN >= 5060 && i.match && i.in_stock && !i.stale).sort((a, b) => a.price - b.price)[0];
 $('stats').innerHTML = [
-  ['Laptops tracked', items.filter(i => !i.stale).length, `<small>${items.filter(i => i.watch).length} on watchlist</small>`],
-  ['In budget now', items.filter(i => i.inBudget && !i.stale).length, `<small>≤ ${inr(B)}</small>`],
+  ['Laptops tracked', items.filter(i => !i.stale).length, `<small>${items.filter(i => i.match && !i.stale).length} meet your specs</small>`],
+  ['In budget now', items.filter(i => i.inBudget && i.match && !i.stale).length, `<small>≤ ${inr(B)}</small>`],
   ['Cheapest RTX 5060+', cheapest5060 ? inr(cheapest5060.price) : '–', cheapest5060 ? `<small>${esc(cheapest5060.store)}</small>` : ''],
   ['Store pages OK', `${okSrc}/${D.sources.length}`, okSrc < D.sources.length ? '<small>see list below</small>' : ''],
 ].map(([k, v, x]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v} ${x}</div></div>`).join('');
@@ -316,44 +354,81 @@ function badges(it) {
 }
 
 // in-budget cards
-const ib = items.filter(i => i.inBudget && !i.stale).sort((a, b) => a.price - b.price);
+const ib = items.filter(i => i.inBudget && i.match && !i.stale).sort((a, b) => a.price - b.price);
 $('inbudget').innerHTML = ib.length ? ib.map(it => `
   <div class="card">
     <div class="name">${esc(it.name)}</div>
     <div class="chips">${it.specs.split(' · ').map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>
     <div class="row"><span class="price">${inr(it.price)}</span><span class="sec">${esc(it.store)}</span></div>
-    <div class="row sec" style="font-size:13px"><span>Lowest ${inr(it.low)}${it.usual ? ' · usual ' + inr(it.usual) : ''}</span>
+    <div class="row sec" style="font-size:13px"><span>All-time low ${inr(it.ath_low || it.low)}${it.usual ? ' · usual ' + inr(it.usual) : ''}</span>
       ${it.target ? `<span>Target ${inr(it.target)}</span>` : ''}</div>
     <div class="chips">${badges(it)}</div>
     ${spark(it, 260, 40)}
     <a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Open on ${esc(it.store)} →</a>
   </div>`).join('') : `<div class="empty">Nothing meeting your specs is at or under ${inr(B)} right now. The bot will message you when something drops into budget.</div>`;
 
+// ---- filters
+const F = {gpu: new Set(), cpu: new Set(), ram: 0, ssd: 0, store: new Set()};
+const uniq = a => [...new Set(a)];
+function chipGroup(el, values, label, set, single) {
+  el.innerHTML = values.map(v => `<button type="button" class="chip" data-v="${esc(v)}">${esc(label(v))}</button>`).join('');
+  el.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const v = b.dataset.v;
+    if (single) {
+      F[single] = (String(F[single]) === v) ? 0 : +v;
+      el.querySelectorAll('button').forEach(x => x.classList.toggle('on', String(F[single]) === x.dataset.v));
+    } else { set.has(v) ? set.delete(v) : set.add(v); b.classList.toggle('on'); }
+    render();
+  });
+}
+chipGroup($('fGpu'), uniq(items.map(i => i.gpu).filter(Boolean)).sort(), v => 'RTX ' + v, F.gpu);
+chipGroup($('fCpu'), ['Intel', 'AMD'], v => v, F.cpu);
+chipGroup($('fRam'), ['16', '24', '32'], v => v + 'GB+', null, 'ram');
+chipGroup($('fSsd'), ['512', '1024'], v => v === '1024' ? '1TB+' : '512GB+', null, 'ssd');
+chipGroup($('fStore'), uniq(items.map(i => i.store)).sort(), v => v, F.store);
+const maxP = Math.max(200000, ...items.map(i => i.price));
+$('fMax').max = Math.ceil(maxP / 5000) * 5000; $('fMax').value = $('fMax').max;
+const showMax = () => $('fMaxV').textContent = '≤ ' + inr(+$('fMax').value);
+showMax();
+$('reset').onclick = () => {
+  F.gpu.clear(); F.cpu.clear(); F.store.clear(); F.ram = 0; F.ssd = 0;
+  document.querySelectorAll('.filters button.chip').forEach(b => b.classList.remove('on'));
+  $('fMax').value = $('fMax').max; $('q').value = ''; render();
+};
+
 function render() {
+  showMax();
   const q = $('q').value.trim().toLowerCase();
-  const onlyWatch = $('onlyWatch').checked, only5060 = $('only5060').checked;
-  let list = items.filter(it => (!onlyWatch || it.watch) && (!only5060 || it.gpuN >= 5060) &&
-    (!q || (it.name + ' ' + it.title + ' ' + it.specs + ' ' + it.store).toLowerCase().includes(q)));
+  const onlyWatch = $('onlyWatch').checked, onlyMatch = $('onlyMatch').checked, onlyStock = $('onlyStock').checked;
+  const maxV = +$('fMax').value;
+  let list = items.filter(it => (!onlyWatch || it.watch) && (!onlyMatch || it.match) && (!onlyStock || it.in_stock)
+    && (!F.gpu.size || F.gpu.has(it.gpu)) && (!F.cpu.size || F.cpu.has(it.cpuBrand))
+    && (!F.store.size || F.store.has(it.store)) && (!F.ram || (it.ram || 0) >= F.ram) && (!F.ssd || (it.ssd || 0) >= F.ssd)
+    && it.price <= maxV
+    && (!q || (it.name + ' ' + it.title + ' ' + it.specs + ' ' + it.store).toLowerCase().includes(q)));
   const s = $('sort').value;
   list.sort((a, b) => s === 'name' ? a.name.localeCompare(b.name)
     : s === 'drop' ? (b.drop ?? -99) - (a.drop ?? -99)
+    : s === 'vsath' ? (a.vsAth ?? 999) - (b.vsAth ?? 999)
     : s === 'gap' ? Math.abs(a.price - B) - Math.abs(b.price - B)
     : a.price - b.price);
   list.sort((a, b) => a.stale - b.stale);
+  $('count').textContent = `${list.length} of ${items.length} laptops`;
+  const ath = it => it.ath_low ? `${inr(it.ath_low)}${it.ath_low_on ? `<div class="s">${esc(it.ath_low_on)}</div>` : ''}` : inr(it.low);
   $('rows').innerHTML = list.length ? list.map(it => `
     <tr class="${it.stale ? 'stale' : ''}">
-      <td><div class="t">${esc(it.name)}</div><div class="s">${esc(it.specs)}${it.verified ? '' : ' · search-page price'}${it.stale ? ' · not seen for ' + ago(it.last_seen).replace(' ago', '') : ''}</div>
+      <td><div class="t">${esc(it.name)}</div><div class="s">${esc(it.specs)}${it.verified ? '' : ' · search-page price'}${it.stale ? ' · not seen for ' + ago(it.last_seen).replace(' ago', '') : ''}${!it.match && it.why_not ? ' · ✕ ' + esc(it.why_not) : ''}</div>
         <div class="chips" style="margin-top:4px">${badges(it)}</div></td>
       <td class="hide-sm">${esc(it.store)}</td>
       <td class="num"><b>${inr(it.price)}</b>${it.mrp && it.mrp > it.price ? `<div class="s"><s>${inr(it.mrp)}</s></div>` : ''}</td>
-      <td class="num hide-sm">${inr(it.low)}</td>
+      <td class="num hide-sm">${ath(it)}</td>
       <td class="num hide-sm">${inr(it.usual)}</td>
       <td class="hide-sm">${spark(it)}</td>
-      <td><a href="${esc(it.url)}" target="_blank" rel="noopener">Open&nbsp;→</a></td>
+      <td><a href="${esc(it.url)}" target="_blank" rel="noopener">Open&nbsp;→</a>${it.ph_url ? `<div class="s"><a href="${esc(it.ph_url)}" target="_blank" rel="noopener">history</a></div>` : ''}</td>
     </tr>`).join('') : `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">No laptops match these filters.</td></tr>`;
   wireSparks($('rows'));
 }
-['q', 'sort', 'onlyWatch', 'only5060'].forEach(id => $(id).addEventListener('input', render));
+['q', 'sort', 'onlyWatch', 'onlyMatch', 'onlyStock', 'fMax'].forEach(id => $(id).addEventListener('input', render));
 render();
 wireSparks($('inbudget'));
 

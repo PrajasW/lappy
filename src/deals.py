@@ -14,7 +14,8 @@ import statistics
 from datetime import datetime, timedelta, timezone
 
 IST = timezone(timedelta(hours=5, minutes=30))
-KEEP_DAYS = 120
+KEEP_DAYS = 120          # the bot's own daily readings
+HIST_KEEP_DAYS = 400     # backfilled history from price-tracker sites
 FORGET_AFTER_DAYS = 30  # drop products not seen on any page for this long
 
 
@@ -43,6 +44,9 @@ def save_history(path: str, h: dict) -> None:
     for pid in list(h["products"]):
         rec = h["products"][pid]
         rec["days"] = {d: p for d, p in rec.get("days", {}).items() if d >= cutoff}
+        hist_cutoff = (now() - timedelta(days=HIST_KEEP_DAYS)).strftime("%Y-%m-%d")
+        if rec.get("hist"):
+            rec["hist"] = {d: p for d, p in rec["hist"].items() if d >= hist_cutoff}
         if not rec["days"] or rec.get("last_seen", "") < forget:
             del h["products"][pid]
     alert_cutoff = (now() - timedelta(days=30)).isoformat()
@@ -81,18 +85,23 @@ def evaluate(h: dict, product, settings: dict, source: str, target: int | None =
     if source == "page":
         rec["last_verified"] = now().isoformat()
         if not rec.get("has_page"):
-            # Switch the series to product-page prices; this first reading is a baseline.
+            # Switch the series to product-page prices (drop search-page readings).
             rec["has_page"] = True
-            rec["days"] = {today(): price}
-            rec["last"] = price
-            return []
+            rec["days"] = {}
+            rec["last"] = None  # a search-page price must not count as "previous price"
+            if not rec.get("hist"):
+                rec["days"] = {today(): price}  # no tracker history: first reading is a silent baseline
+                rec["last"] = price
+                return []
+            # With tracker history we can judge this price right away (falls through).
 
     days: dict = rec["days"]
     day = today()
     prev_last = rec.get("last")
-    previous_low = min(days.values()) if days else None
+    combined = combined_days(rec)  # backfilled tracker history + our own readings
+    previous_low = min(combined.values()) if combined else None
     window_start = (now() - timedelta(days=settings["median_window_days"])).strftime("%Y-%m-%d")
-    past = [p for d, p in days.items() if window_start <= d < day]
+    past = [p for d, p in combined.items() if window_start <= d < day]
     days[day] = min(price, days.get(day, price))
     rec["last"] = price
 
@@ -109,6 +118,11 @@ def evaluate(h: dict, product, settings: dict, source: str, target: int | None =
         if drop >= settings["drop_pct_vs_median"]:
             reasons.append(f"{drop:.0f}% below its usual {inr(int(med))} (last {settings['median_window_days']} days)")
     return reasons
+
+
+def combined_days(rec: dict) -> dict:
+    """Price-tracker history (older) overlaid with the bot's own readings (authoritative)."""
+    return {**(rec.get("hist") or {}), **(rec.get("days") or {})}
 
 
 def should_alert(h: dict, pid: str, price: int, settings: dict) -> bool:

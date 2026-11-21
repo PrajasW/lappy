@@ -1,6 +1,6 @@
 # ============================================================================
 #  Laptop deal bot: configuration
-#  Edit this on github.com (pencil icon) or locally + push. The next run uses it.
+#  Lives on the server at ~/Desktop/lappy/config.yaml. The next run (every 30 min) uses it.
 # ============================================================================
 
 # ---------------------------------------------------------------------------
@@ -72,10 +72,9 @@ watchlist:
       - https://www.flipkart.com/hp-victus-ai-amd-ryzen-7-octa-core-260-16-gb-1-tb-ssd-windows-11-home-8-gb-graphics-nvidia-geforce-rtx-5050-15-fb3102ax-gaming-laptop/p/itm4258682d8b436?pid=COMHPPZS4ADVNGZM
 
 # ---------------------------------------------------------------------------
-# CRITERIA: every laptop on these store search pages that meets your specs is
-# tracked (shown on the dashboard). You get an alert when one is within budget
-# AND drops into budget / hits a new low / falls well below its usual price.
-# A laptop's first sighting is silent (it builds a baseline).
+# STORE SEARCH PAGES: every laptop found here (₹75k–₹2L) is tracked and shown on
+# the dashboard. Alerts only fire for laptops that meet your specs above.
+# A laptop's first sighting is silent unless real price history exists for it.
 # ---------------------------------------------------------------------------
 criteria:
   enabled: true
@@ -84,13 +83,31 @@ criteria:
     - "https://www.amazon.in/s?k=rtx+5060+laptop&rh=p_36%3A7500000-20000000"
     - "https://www.amazon.in/s?k=rtx+5050+laptop&rh=p_36%3A7500000-20000000"
     - "https://www.amazon.in/s?k=rtx+4060+laptop&rh=p_36%3A7500000-20000000"
+    - "https://www.amazon.in/s?k=gaming+laptop&rh=p_36%3A7500000-20000000"
     - "https://www.flipkart.com/search?q=rtx+5060+laptop&p%5B%5D=facets.price_range.from%3D75000&p%5B%5D=facets.price_range.to%3D200000"
     - "https://www.flipkart.com/search?q=rtx+5050+laptop&p%5B%5D=facets.price_range.from%3D75000&p%5B%5D=facets.price_range.to%3D200000"
     - "https://www.flipkart.com/search?q=rtx+4060+laptop&p%5B%5D=facets.price_range.from%3D75000&p%5B%5D=facets.price_range.to%3D200000"
+    - "https://www.flipkart.com/search?q=gaming+laptop&p%5B%5D=facets.price_range.from%3D75000&p%5B%5D=facets.price_range.to%3D200000"
     - "https://www.reliancedigital.in/products?q=rtx%205060%20laptop"
     - "https://www.reliancedigital.in/products?q=rtx%205050%20laptop"
     - "https://www.reliancedigital.in/collection/gaming-laptops"
     - "https://www.croma.com/computers-tablets/laptops/gaming-laptops/c/806"
+
+# ---------------------------------------------------------------------------
+# OFFICIAL BRAND STORES (searched through their own store APIs)
+#   Not possible right now: Acer store (blocks bots), Dell India (redirects to a
+#   reseller), ASUS eShop India, MSI/Gigabyte (don't sell direct in India).
+# ---------------------------------------------------------------------------
+brands:
+  lenovo: ["rtx 5060", "rtx 5050", "rtx 4060", "rtx 5070", "loq", "legion"]
+  hp: ["gaming laptop", "omen", "victus"]
+
+# ---------------------------------------------------------------------------
+# Notifications: Telegram bot @lappy_deal_alerts_bot.
+# Secrets (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) live in the .env file, never here.
+# ---------------------------------------------------------------------------
+notify:
+  dashboard_url: "http://10.1.75.56:8787/"
 
 # ---------------------------------------------------------------------------
 # Settings (defaults are sensible)
@@ -101,6 +118,7 @@ settings:
   min_days_for_median: 3
   new_low_min_drop_pct: 2      # a "new low" must beat the old low by at least this %
   realert_hours: 168           # repeat an alert for the same laptop only after 7 days (or sooner if cheaper)
-  fail_alert_after: 6          # WhatsApp warning after this many failed checks in a row for a page
+  fail_alert_after: 6          # Telegram warning after this many failed checks in a row for a page
   max_alerts_per_run: 10
   refresh_per_run: 8           # product pages re-checked per run (keeps search-page prices honest)
+  backfill_per_run: 8          # laptops per run whose past prices are fetched from pricehistory.app

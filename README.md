@@ -1,96 +1,65 @@
-# 💻 Laptop Deal Bot
+# 💻 Lappy: laptop deal bot
 
-Every 30 minutes, the bot checks Amazon.in, Flipkart, Reliance Digital and Croma for laptops that meet your specs. You get a **WhatsApp** message when one hits a real deal within your budget. A **live dashboard** shows every tracked laptop, its price history, and which ones are in budget right now.
+Runs on the home server **navi** (`~/Desktop/lappy`). Every 30 minutes it:
 
-- **Dashboard:** https://prajasw.github.io/lappy/
-- **Your specs** (`config.yaml`):
-  - CPU: i7/i9 13th gen+ / Core Ultra 7+ / Ryzen 7 250/260-class or better
-  - 16GB+ RAM
-  - 512GB+ SSD
-  - RTX 5050/4060/5060 or better
-  - Budget: ≤ ₹1.5L
-- It runs free on GitHub Actions, so your PC can be off.
+1. Scans **Amazon.in, Flipkart, Reliance Digital, Croma** and the official **Lenovo** and **HP** stores for laptops between ₹75k and ₹2L.
+2. Reads each laptop's CPU / GPU / RAM / SSD and checks them against your specs. Every laptop found is tracked; your specs decide which ones can alert.
+3. Pulls **real past prices** (up to ~1 year) from pricehistory.app for Amazon/Flipkart laptops.
+4. Sends a **Telegram** message via @lappy_deal_alerts_bot when a laptop that meets your specs is in stock, at or under ₹1.5L, and:
+   - drops into your budget, or
+   - hits a watchlist target, or
+   - hits a new low, or
+   - falls 8%+ below its usual price.
+5. Rebuilds the **dashboard**: http://10.1.75.56:8787/ (on your local network).
 
-## What triggers a WhatsApp alert
-A laptop that meets your specs, is **in stock**, and is **at or under ₹1.5L** (or at/under a watchlist `target_price`) when any of these happen:
-- 🎯 It reaches your watchlist target price.
-- 📥 It **drops into your budget**. The bot tracks spec-matching laptops up to ₹2L, so it catches e.g. a ₹1.75L RTX 5060 laptop falling to ₹1.45L in a sale.
-- 📉 Its lowest price so far, or 8%+ below its usual (30-day median) price.
+## Your specs (edit `config.yaml`)
+- CPU: i7/i9 13th gen+, Core Ultra 7/9, Core 7 240H-class, or Ryzen 7/9 250/260, 8845HS, AI 7/9, 9000-series
+- RAM 16GB+, SSD 512GB+
+- GPU: RTX 5050 / 4060 / 5060 or better
+- Budget ₹1.5L
 
-Before alerting, the bot re-checks the price and specs on the product page. The same laptop won't alert again for 7 days unless it gets cheaper. If a store page fails 6 checks in a row, you get a warning so nothing breaks silently.
+## Telegram setup (one step left)
+The bot @lappy_deal_alerts_bot is created and started, and your chat ID is already in `.env`. Add the bot token:
+1. In Telegram, open **@BotFather** → `/mybots` → **Lappy Deal Alerts** → **API Token** → copy it.
+2. On the server: `nano ~/Desktop/lappy/.env` → paste it after `TELEGRAM_BOT_TOKEN=` → save.
+3. Test it: `cd ~/Desktop/lappy && .venv/bin/python src/main.py --test-telegram`
 
----
-
-## One-time setup
-
-### 1. Make the repo public and turn on Pages (2 min)
-1. https://github.com/PrajasW/lappy/settings → bottom of the page → **Change visibility → Public**.
-   - Public repos get unlimited free Actions minutes and free Pages.
-   - Your secrets stay hidden. Only the code, `config.yaml` and the price history are visible.
-2. https://github.com/PrajasW/lappy/settings/pages → **Source: GitHub Actions**.
-
-### 2. WhatsApp: Meta WhatsApp Cloud API (~30–45 min, one time)
-You'll use Meta's free **test number**. It can message up to 5 verified numbers at no cost.
-
-1. **Create a Meta developer account** at https://developers.facebook.com (log in with Facebook) and verify it.
-2. **My Apps → Create app** → use case **"Connect with customers through WhatsApp"** (type: Business) → follow the prompts. This creates a test WhatsApp Business Account (WABA) and a test phone number.
-3. Open the app's **WhatsApp → API Setup** page:
-   - Under **"To"**, click **Manage phone number list** → add **your** WhatsApp number → enter the code WhatsApp sends you.
-   - Note the **Phone number ID** and the **WhatsApp Business Account ID** shown on that page.
-4. **Get a permanent token.** The token on the API Setup page expires in 24 h.
-   1. Go to https://business.facebook.com/settings → **Users → System users → Add**. Name it e.g. `deal-bot`, role **Admin**.
-   2. **Assign assets**: your app (Full control) and your WhatsApp account (Full control).
-   3. **Generate new token** → choose your app → **Expiration: Never** → permissions `whatsapp_business_messaging` and `whatsapp_business_management` → copy the token.
-5. **Create the two message templates.** Meta requires templates for messages the bot sends first. In PowerShell, in this folder:
-   ```powershell
-   $env:WHATSAPP_TOKEN="<permanent token>"
-   $env:WHATSAPP_WABA_ID="<WhatsApp Business Account ID>"
-   $env:WHATSAPP_PHONE_NUMBER_ID="<Phone number ID>"
-   $env:WHATSAPP_TO="91XXXXXXXXXX"   # your number: country code + number, digits only
-   .venv\Scripts\python src\main.py --create-wa-templates
-   ```
-   Approval usually takes a few minutes to a few hours. Check under **WhatsApp Manager → Message templates**. Meta may re-label them "Marketing"; that's fine, messages from the test number are still free.
-6. Once approved, run a test:
-   ```powershell
-   .venv\Scripts\python src\main.py --test-whatsapp
-   ```
-   *Tip:* send any message (e.g. "hi") from your phone to the test number once. For the next 24 h the bot can also send plain-text messages, which is the fallback if a template ever gets rejected.
-
-### 3. Add the GitHub secrets (2 min)
-https://github.com/PrajasW/lappy/settings/secrets/actions → **New repository secret**, three times:
-
-| Name | Value |
+## Day-to-day
+| Task | Command / file (on navi, in `~/Desktop/lappy`) |
 |---|---|
-| `WHATSAPP_TOKEN` | the permanent system-user token |
-| `WHATSAPP_PHONE_NUMBER_ID` | Phone number ID from API Setup |
-| `WHATSAPP_TO` | your number, e.g. `919812345678` |
+| Change budget, specs, watchlist, stores | `config.yaml` (picked up on the next run) |
+| Run now | `deploy/run.sh` |
+| Dry run (no messages, nothing saved) | `.venv/bin/python src/main.py --dry-run` |
+| See what happened | `tail -100 logs/run.log` |
+| Dashboard server log | `logs/server.log` |
+| Cron jobs | `crontab -l` (run every 30 min; keep the dashboard up every 5 min and on boot) |
+| Reinstall (venv, deps, cron) | `bash deploy/install.sh` |
 
-### 4. Run it
-https://github.com/PrajasW/lappy/actions → **Check laptop deals** → **Run workflow**. After it finishes (~2–3 min), open the dashboard link above. From then on it runs every ~30 min by itself.
-
----
-
-## Everyday use
-- **Add or remove a laptop to watch:** edit `config.yaml` on GitHub (pencil icon). Add the product page URL from any store under `watchlist:` with a `target_price`.
-- **Change budget or specs:** see the `budget:` and `specs:` sections of `config.yaml`.
-- **Scan more pages:** apply filters on a store's website, copy the URL, and add it under `criteria → search_urls`.
-- **Check locally without sending anything:** `.venv\Scripts\python src\main.py --dry-run`
-
-## Good to know
-- Prices are **listed prices**. Bank card, exchange and coupon offers are not included, so the real price is often ₹5–10k lower.
-- Search pages sometimes show different prices than product pages. The bot re-checks ~8 product pages per run and always alerts using product-page prices.
-- Vijay Sales isn't scanned: its listings don't name the CPU model, so the spec filter can't check them. You can still put a Vijay Sales product URL in the watchlist.
-- Amazon sometimes blocks automated checks; the bot retries with different browser fingerprints.
-- If WhatsApp alerts stop: Meta tokens can be revoked if the app goes unused or its settings change. Regenerate the system-user token and update `WHATSAPP_TOKEN`.
+## How it decides
+- **Tracked range:** ₹75k–₹2L. Tracking above budget lets the bot catch e.g. a ₹1.75L RTX 5060 laptop falling to ₹1.45L.
+- **Search pages vs product pages:** prices on store search pages can be stale. The bot re-checks product pages (8 per run, round-robin) and always re-checks before alerting.
+- **First sighting:** silent unless real price history exists for that laptop. Repeat alerts for the same laptop come after 7 days, or sooner if it gets cheaper.
+- **Broken pages:** if a store page fails 6 runs in a row, you get a Telegram warning.
+- **Brand stores:** Lenovo and HP prices come from their store APIs.
+  - Acer's store blocks bots.
+  - Dell India redirects to a reseller.
+  - ASUS eShop India has no usable listing.
+  - MSI and Gigabyte don't sell direct in India.
+- **Prices are listed prices.** Bank card and exchange offers are not included.
 
 ## Files
-| File | What it does |
+| Path | What |
 |---|---|
-| `config.yaml` | budget, specs, watchlist, store search pages, alert settings |
-| `src/main.py` | the run: fetch → check specs → evaluate → alert |
-| `src/specs.py` | reads CPU/GPU/RAM/SSD from product titles and URLs |
+| `config.yaml` | budget, specs, watchlist, search pages, brand queries, settings |
+| `.env` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (private, not in git) |
+| `src/main.py` | one run: fetch → specs → evaluate → backfill → alert |
+| `src/specs.py` | CPU/GPU/RAM/SSD parsing from titles and URLs |
 | `src/extract.py`, `src/fetch.py` | store page fetching and price extraction |
+| `src/brands.py` | Lenovo and HP official store APIs |
+| `src/pricehistory.py` | real past prices from pricehistory.app |
 | `src/deals.py` | price history and deal rules |
-| `src/whatsapp.py` | WhatsApp Cloud API |
-| `src/dashboard.py` | builds the GitHub Pages dashboard |
-| `data/history.json` | price history (committed by the bot every run) |
+| `src/telegram.py` | Telegram messages |
+| `src/dashboard.py` | builds `site/index.html` |
+| `deploy/` | `install.sh`, `run.sh` (cron job), `serve.sh` (dashboard server on :8787) |
+| `data/history.json` | price history (server only) |
+| `claude-session/` | transcript of the Claude Code session that built this (not in git) |
